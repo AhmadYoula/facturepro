@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./landing.css";
+import "./landing-extra.css";
 import { AppFeedbackProvider } from "@/components/AppFeedback";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
