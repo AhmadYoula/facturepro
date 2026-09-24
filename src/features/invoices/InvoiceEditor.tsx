@@ -140,6 +140,10 @@ export function InvoiceEditor({ onClose }: { onClose: () => void }) {
     setRestored(false);
     setSaved(false);
   };
+  const openDirectory = async (view: "Clients" | "Produits") => {
+    await offlineDb.drafts.put({ ...draft, updatedAt: Date.now() });
+    window.dispatchEvent(new CustomEvent("facturepro:navigate", { detail: view }));
+  };
 
   const issueInvoice = async () => {
     const errors = validateInvoiceDraft({ customer: draft.customer, issueDate: draft.issueDate, dueDate: draft.dueDate, lines });
@@ -181,6 +185,7 @@ export function InvoiceEditor({ onClose }: { onClose: () => void }) {
             {customers.map((customer) => <option key={customer.id}>{customer.name}</option>)}
           </select>
         </label>
+        <div className="editor-directory-links"><button type="button" onClick={() => void openDirectory("Clients")}>＋ Ajouter un client</button><button type="button" onClick={() => void openDirectory("Produits")}>＋ Ajouter un produit</button></div>
         <div className="form-grid">
           <label>Date d’émission<input type="date" value={draft.issueDate} onChange={(event) => update("issueDate", event.target.value)} /></label>
           <label>Échéance<input type="date" value={draft.dueDate} onChange={(event) => update("dueDate", event.target.value)} /></label>
