@@ -19,6 +19,7 @@ export function LocalDirectoryView({ kind }: { kind: DirectoryKind }) {
   const [description, setDescription] = useState("");
   const [vatRate, setVatRate] = useState("18");
   const [message, setMessage] = useState("");
+  const [mobileFormOpen, setMobileFormOpen] = useState(false);
 
   const refresh = () => {
     if (kind === "customers") void offlineDb.customers.orderBy("createdAt").reverse().toArray().then(setCustomers);
@@ -27,7 +28,7 @@ export function LocalDirectoryView({ kind }: { kind: DirectoryKind }) {
   useEffect(refresh, [kind]);
 
   const resetForm = () => { setEditingId(undefined); setName(""); setContact(""); setEmail(""); setAddress(""); setDescription(""); setVatRate("18"); };
-  const editCustomer = (customer: LocalCustomer) => { setEditingId(customer.id); setName(customer.name); setContact(customer.phone); setEmail(customer.email); setAddress(customer.address ?? ""); setMessage(""); };
+  const editCustomer = (customer: LocalCustomer) => { setEditingId(customer.id); setName(customer.name); setContact(customer.phone); setEmail(customer.email); setAddress(customer.address ?? ""); setMessage(""); setMobileFormOpen(true); };
 
   const saveItem = async () => {
     if (name.trim() === "") { setMessage(kind === "customers" ? "Le nom du client est obligatoire." : "Le nom du produit est obligatoire."); return; }
@@ -40,18 +41,19 @@ export function LocalDirectoryView({ kind }: { kind: DirectoryKind }) {
       if (!/^\d+$/.test(unitPrice)) { setMessage("Le prix doit être un montant entier en GNF."); return; }
       await offlineDb.products.add({ id: crypto.randomUUID(), name: name.trim(), description: description.trim(), unitPriceMinor: unitPrice, vatRateBp: String(Number(vatRate || 0) * 100), unit: "unité", createdAt: Date.now() });
     }
-    resetForm(); requestRemoteSync(); setMessage(kind === "customers" ? "Client enregistré localement." : "Produit ajouté localement."); refresh();
+    resetForm(); setMobileFormOpen(false); requestRemoteSync(); setMessage(kind === "customers" ? "Client enregistré et synchronisé." : "Produit ajouté et synchronisé."); refresh();
   };
 
   const removeItem = async (id: string) => { if (kind === "customers") await offlineDb.customers.delete(id); else await offlineDb.products.delete(id); requestRemoteSync(); refresh(); };
   const isEditing = editingId !== undefined;
 
-  return <section className="directory-layout">
-    <div className="panel directory-form"><div className="panel-heading"><div><h2>{kind === "customers" ? (isEditing ? "Modifier le client" : "Nouveau client") : "Nouveau produit"}</h2><p>Enregistré uniquement sur cet appareil.</p></div><span className="draft-badge">Mode local</span></div>
+  return <section className={`directory-layout ${mobileFormOpen ? "mobile-form-open" : ""}`}>
+    <button className="directory-mobile-create" type="button" aria-expanded={mobileFormOpen} onClick={() => { if (mobileFormOpen) resetForm(); setMobileFormOpen(!mobileFormOpen); }}><span>{mobileFormOpen ? "×" : "+"}</span>{mobileFormOpen ? "Fermer le formulaire" : kind === "customers" ? "Nouveau client" : "Nouveau produit"}</button>
+    <div className="panel directory-form"><div className="panel-heading"><div><h2>{kind === "customers" ? (isEditing ? "Modifier le client" : "Nouveau client") : "Nouveau produit"}</h2><p>Enregistré localement puis synchronisé avec votre espace.</p></div><span className="draft-badge">Synchronisé</span></div>
       <label>Nom{name === "" && <span className="required-mark"> *</span>}<input value={name} onChange={(event) => setName(event.target.value)} placeholder={kind === "customers" ? "Ex. Kamsar Digital" : "Ex. Conseil mensuel"} /></label>
       <label>{kind === "customers" ? "Téléphone" : "Prix unitaire GNF"}<input inputMode={kind === "customers" ? "tel" : "numeric"} value={contact} onChange={(event) => setContact(event.target.value)} placeholder={kind === "customers" ? "+224 620 00 00 00" : "Ex. 2500000"} /></label>
       {kind === "customers" ? <><label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="client@example.com" /></label><label>Adresse<input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="Ex. Kaloum, Conakry" /></label></> : <><label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description du service" /></label><label>TVA par défaut<input inputMode="numeric" value={vatRate} onChange={(event) => setVatRate(event.target.value)} placeholder="18" /></label></>}
-      <div className="directory-form-actions"><button className="primary-button directory-submit" type="button" onClick={() => void saveItem()}>{isEditing ? "Enregistrer les modifications" : "Ajouter localement"}</button>{isEditing && <button className="secondary-button" type="button" onClick={resetForm}>Annuler</button>}</div>{message !== "" && <p className="editor-message" role="status">{message}</p>}
+      <div className="directory-form-actions"><button className="primary-button directory-submit" type="button" onClick={() => void saveItem()}>{isEditing ? "Enregistrer les modifications" : kind === "customers" ? "Créer le client" : "Créer le produit"}</button>{isEditing && <button className="secondary-button" type="button" onClick={() => { resetForm(); setMobileFormOpen(false); }}>Annuler</button>}</div>{message !== "" && <p className="editor-message" role="status">{message}</p>}
     </div>
     <div className="panel directory-list"><div className="panel-heading"><div><h2>{kind === "customers" ? "Clients" : "Produits et services"}</h2><p>{kind === "customers" ? `${customers.length} client(s) enregistré(s)` : `${products.length} élément(s) enregistré(s)`}</p></div></div>
       {kind === "customers" ? customers.length === 0 ? <div className="empty-state"><strong>Aucun client</strong><span>Ajoutez votre premier client local.</span></div> : customers.map((customer) => <div className="directory-row" key={customer.id}><div><strong>{customer.name}</strong><span>{customer.phone || "Téléphone non renseigné"}{customer.address ? ` · ${customer.address}` : ""}{customer.email ? ` · ${customer.email}` : ""}</span></div><div className="directory-row-actions"><button className="detail-button" type="button" onClick={() => editCustomer(customer)}>Modifier</button><button className="delete-button" type="button" aria-label={`Supprimer ${customer.name}`} onClick={() => void removeItem(customer.id)}>×</button></div></div>) : products.length === 0 ? <div className="empty-state"><strong>Aucun produit</strong><span>Ajoutez votre premier produit ou service.</span></div> : products.map((product) => <div className="directory-row" key={product.id}><div><strong>{product.name}</strong><span>{money(product.unitPriceMinor)} · TVA {Number(product.vatRateBp) / 100} %</span></div><button className="delete-button" type="button" aria-label={`Supprimer ${product.name}`} onClick={() => void removeItem(product.id)}>×</button></div>)}
